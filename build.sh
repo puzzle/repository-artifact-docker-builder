@@ -26,7 +26,7 @@ fi
 # Artifact URL is delivered by OpenShift 3 Jenkins Plugin in Git Commit parameter
 ARTIFACT_URL=`echo "${BUILD}" | jq -r .spec.revision.git.commit`
 
-curl ${CURL_OPTS} "ARTIFACT_URL" -o ROOT.war
+curl ${CURL_OPTS} "${ARTIFACT_URL}" -o ROOT.war
 unzip -p ROOT.war META-INF/Dockerfile >Dockerfile
 
 echo -e ".build_tag\n.d2i" >> .dockerignore
