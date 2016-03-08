@@ -1,0 +1,247 @@
+{
+    "kind": "Template",
+    "apiVersion": "v1",
+    "metadata": {
+        "name": "repository-artifact-builder",
+        "creationTimestamp": null,
+        "annotations": {
+            "description": "Application template for built using an artifact provided through HTTP.",
+            "iconClass": "icon-custom"
+        }
+    },
+    "objects": [
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "description": "The web server's http port."
+                },
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "name": "${APPLICATION_NAME}"
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "port": 8080,
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}"
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "id": "${APPLICATION_NAME}-http-route",
+            "kind": "Route",
+            "metadata": {
+                "annotations": {
+                    "description": "Route for application's http service."
+                },
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "name": "${APPLICATION_NAME}-http-route"
+            },
+            "spec": {
+                "host": "${APPLICATION_HOSTNAME}",
+                "to": {
+                    "name": "${APPLICATION_NAME}"
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "ImageStream",
+            "metadata": {
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "name": "${APPLICATION_NAME}"
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "BuildConfig",
+            "metadata": {
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "name": "${APPLICATION_NAME}"
+            },
+            "spec": {
+                "output": {
+                    "to": {
+                        "kind": "ImageStreamTag",
+                        "name": "${APPLICATION_NAME}:latest"
+                    }
+                },
+                "strategy": {
+                    "customStrategy": {
+                        "env": [
+                            {
+                                "name": "DOCKERFILE_URL",
+                                "value": "${DOCKERFILE_URL}"
+                            }
+                        ],
+                        "exposeDockerSocket": true,
+                        "from": {
+                            "kind": "ImageStreamTag",
+                            "name": "repository-artifact-docker-builder:latest",
+                            "namespace": "custom-builder"
+                        },
+                        "secrets": [
+                            {
+                                "mountPath": "/etc/secret-volume",
+                                "secretSource": {
+                                    "name": "jenkins-secret"
+                                }
+                            }
+                        ]
+                    },
+                    "type": "Custom"
+                },
+                "triggers": [
+                    {
+                        "generic": {
+                            "secret": "${GENERIC_TRIGGER_SECRET}"
+                        },
+                        "type": "Generic"
+                    },
+                    {
+                        "imageChange": {},
+                        "type": "ImageChange"
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "DeploymentConfig",
+            "metadata": {
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "name": "${APPLICATION_NAME}"
+            },
+            "spec": {
+                "replicas": 1,
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}"
+                },
+                "strategy": {
+                    "type": "Recreate"
+                },
+                "template": {
+                    "metadata": {
+                        "labels": {
+                            "application": "${APPLICATION_NAME}",
+                            "deploymentConfig": "${APPLICATION_NAME}"
+                        },
+                        "name": "${APPLICATION_NAME}"
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {
+                                        "name": "DUMMY",
+                                        "value": ""
+                                    }
+                                ],
+                                "image": "${APPLICATION_NAME}",
+                                "imagePullPolicy": "Always",
+                                "name": "${APPLICATION_NAME}",
+                                "ports": [
+                                    {
+                                        "containerPort": 8080,
+                                        "name": "http",
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "readinessProbe": {
+                                    "exec": {
+                                        "command": [
+                                            "/bin/bash",
+                                            "-c",
+                                            "curl -I -X GET 'http://localhost:8080/' 2>/dev/null | head -n 1 | cut -d$' ' -f2 | grep -q '^2'"
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "triggers": [
+                    {
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "${APPLICATION_NAME}"
+                            ],
+                            "from": {
+                                "kind": "ImageStream",
+                                "name": "${APPLICATION_NAME}"
+                            }
+                        },
+                        "type": "ImageChange"
+                    }
+                ]
+            }
+        },
+{
+    "kind": "ServiceAccount",
+    "apiVersion": "v1",
+    "metadata": {
+        "name": "builder",
+        "creationTimestamp": null
+    },
+    "secrets": [
+        {
+            "name": "jenkins-secret"
+        }
+    ]
+},
+{
+    "kind": "Secret",
+    "apiVersion": "v1",
+    "metadata": {
+        "name": "jenkins-secret",
+        "creationTimestamp": null
+    },
+    "data": {
+        ".netrc": "bWFjaGluZSBqZW5raW5zLmVjaGJydWVkb20ubG9jYWwKbG9naW4gc19vcGVuc2hpZnQKcGFzc3dvcmQgU3dhYTduVERxQkJlCg=="
+    },
+    "type": "Opaque"
+}
+
+    ],
+    "parameters": [
+        {
+            "name": "APPLICATION_NAME",
+            "description": "The name for the application.",
+            "value": "example"
+        },
+        {
+            "name": "APPLICATION_HOSTNAME",
+            "description": "Custom hostname for service routes.  Leave blank for default hostname, e.g.: \u003capplication-name\u003e.\u003cproject\u003e.\u003cdefault-domain-suffix\u003e"
+        },
+        {
+            "name": "DOCKERFILE_URL",
+            "description": "URL of Dockerfile to use"
+        },
+        {
+            "name": "GENERIC_TRIGGER_SECRET",
+            "description": "Generic build trigger secret",
+            "generate": "expression",
+            "from": "[a-zA-Z0-9]{8}"
+        }
+    ],
+    "labels": {
+        "template": "repository-artifact-builder"
+    }
+}
