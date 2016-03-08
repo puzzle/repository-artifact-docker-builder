@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 set -e
 set -o pipefail
 #IFS=$'\n\t'
@@ -24,7 +24,7 @@ else
 fi
 
 # Artifact URL is delivered by OpenShift 3 Jenkins Plugin in Git Commit parameter
-ARTIFACT_URL=`echo "$BUILD" | jq -r .spec.revision.git.commit`
+ARTIFACT_URL=`echo "${BUILD}" | jq -r .spec.revision.git.commit`
 
 curl ${CURL_OPTS} "ARTIFACT_URL" -o ROOT.war
 unzip -p ROOT.war META-INF/Dockerfile >Dockerfile
